@@ -79,7 +79,7 @@ async function upload(){
   return;
  }
  document.getElementById('message').textContent='جاري الرفع...';
- const path=user.id+'/'+Date.now()+'-'+file.name;
+ const path = user.id + '/' + Date.now() + '.mp4';
  const {error}=await db.storage.from('episodes').upload(path,file);
  if(error){
   document.getElementById('message').textContent=error.message;
@@ -98,7 +98,7 @@ async function loadEpisodes(){
  if(error){area.textContent=error.message;return;}
  for(const item of (data||[])){
   if(!item.name || item.name.startsWith('.')) continue;
-  const path=user.id+'/'+item.name;
+  const path = user.id + '/' + item.name;
   const {data:link}=await db.storage.from('episodes').createSignedUrl(path,3600);
   if(!link) continue;
   const box=document.createElement('div');
