@@ -4,7 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ليل البنفسج - الجزء الثاني</title>
+<title>ليل البنفسج | الجزء الثاني</title>
 <style>
 body {
   margin: 0;
@@ -15,27 +15,63 @@ body {
 }
 header {
   background: #251438;
-  padding: 35px;
+  padding: 30px;
 }
 h1 { color: #d5a5ff; }
-.episode {
+main { padding: 20px; }
+.box {
   background: #241b30;
-  margin: 20px;
-  padding: 20px;
-  border-radius: 12px;
+  padding: 22px;
+  border-radius: 15px;
+  margin: 20px auto;
+  max-width: 600px;
+}
+input { max-width: 100%; }
+video {
+  width: 100%;
+  margin-top: 20px;
+  border-radius: 10px;
 }
 </style>
 </head>
 <body>
+
 <header>
 <h1>ليل البنفسج</h1>
 <p>الجزء الثاني</p>
 </header>
+
 <main>
-<h2>الحلقات</h2>
-<div class="episode">
-لا توجد حلقات حالياً
+<div class="box">
+<h2>مشاهدة الحلقات</h2>
+<p>اختر ملف الحلقة من جهازك</p>
+
+<input type="file" id="file" accept="video/mp4,video/*">
+
+<video id="player" controls playsinline hidden></video>
+
+<p id="name"></p>
 </div>
 </main>
+
+<script>
+const file = document.getElementById('file');
+const player = document.getElementById('player');
+const name = document.getElementById('name');
+let oldUrl;
+
+file.addEventListener('change', () => {
+  const video = file.files[0];
+  if (!video) return;
+
+  if (oldUrl) URL.revokeObjectURL(oldUrl);
+  oldUrl = URL.createObjectURL(video);
+
+  player.src = oldUrl;
+  player.hidden = false;
+  name.textContent = video.name;
+});
+</script>
+
 </body>
 </html>
