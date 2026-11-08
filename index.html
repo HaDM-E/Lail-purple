@@ -118,7 +118,10 @@ async function logout(){
  await refresh();
 }
 
-refresh();
+db.auth.getSession().then(({data, error}) => {
+  document.getElementById('status').textContent =
+    error ? error.message : 'الاتصال بـ Supabase يعمل';
+});
 </script>
 </body>
 </html>
