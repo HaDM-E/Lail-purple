@@ -12,11 +12,12 @@ header{background:#251438;padding:25px}
 h1{color:#d5a5ff}
 .box{background:#241b30;padding:20px;margin:18px auto;border-radius:15px;max-width:550px}
 input,button{padding:12px;margin:8px;border-radius:8px;max-width:90%}
-button{background:#9b59b6;color:white;border:0}
+button{background:#9b59b6;color:white;border:0;cursor:pointer}
 video{width:100%;margin-top:15px}
 </style>
 </head>
 <body>
+
 <header>
 <h1>ليل البنفسج</h1>
 <p>الجزء الثاني</p>
@@ -46,85 +47,68 @@ video{width:100%;margin-top:15px}
 const SUPABASE_URL = "https://njszmowbcsizrcalbnsv.supabase.co";
 const SUPABASE_KEY = "sb_publishable_P-XFrSjOs8CRXgdtc_1NJg_-khQHqRr";
 
-const db = window.supabase.createClient(
-  SUPABASE_URL,
-  SUPABASE_KEY
-);
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-async function login(){
- const {error}=await db.auth.signInWithPassword({
-  email:document.getElementById('email').value,
-  password:document.getElementById('password').value
- });
+async function refresh(){
+ const {data,error}=await db.auth.getSession();
  if(error){
   document.getElementById('status').textContent=error.message;
   return;
  }
- await refresh();
-}
-
-async function login(){
-  const email = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value;
-
-  const status = document.getElementById('status');
-  status.textContent = 'جاري الاتصال...';
-
-  try {
-    const result = await db.auth.signInWithPassword({
-      email,
-      password
-    });
-
-    if (result.error) {
-      status.textContent = result.error.message;
-      return;
-    }
-
-    status.textContent = 'تم تسجيل الدخول بنجاح';
-    await refresh();
-
-  } catch (e) {
-    status.textContent = e.message;
-  }
-}{
- const {data:{session}}=await db.auth.getSession();
+ const session=data.session;
  document.getElementById('login').hidden=!!session;
  document.getElementById('library').hidden=!session;
  if(session) await loadEpisodes();
 }
 
+async function login(){
+ const status=document.getElementById('status');
+ const email=document.getElementById('email').value.trim();
+ const password=document.getElementById('password').value;
+ status.textContent='جاري تسجيل الدخول...';
+
+ try{
+  const {error}=await db.auth.signInWithPassword({email,password});
+  if(error){
+   status.textContent=error.message;
+   return;
+  }
+  status.textContent='تم تسجيل الدخول';
+  await refresh();
+ }catch(e){
+  status.textContent='خطأ: '+e.message;
+ }
+}
+
 async function upload(){
  const {data:{user}}=await db.auth.getUser();
  const file=document.getElementById('file').files[0];
- if(!file || !user) return;
- if(file.type!=='video/mp4'){
-  alert('اختر ملف MP4');
-  return;
- }
- document.getElementById('message').textContent='جاري الرفع...';
- const path = user.id + '/' + Date.now() + '.mp4';
+ const message=document.getElementById('message');
+ if(!file||!user){message.textContent='اختر ملف فيديو أولاً';return;}
+ if(file.type!=='video/mp4'){message.textContent='اختر ملف MP4';return;}
+ message.textContent='جاري الرفع...';
+ const path=user.id+'/'+Date.now()+'.mp4';
  const {error}=await db.storage.from('episodes').upload(path,file);
- if(error){
-  document.getElementById('message').textContent=error.message;
-  return;
- }
- document.getElementById('message').textContent='تم رفع الحلقة';
+ if(error){message.textContent=error.message;return;}
+ message.textContent='تم رفع الحلقة';
  document.getElementById('file').value='';
  await loadEpisodes();
 }
 
 async function loadEpisodes(){
  const {data:{user}}=await db.auth.getUser();
- const {data,error}=await db.storage.from('episodes').list(user.id);
  const area=document.getElementById('episodes');
+ area.innerHTML='جاري تحميل الحلقات...';
+ if(!user){area.textContent='لم يتم تسجيل الدخول';return;}
+ const {data,error}=await db.storage.from('episodes').list(user.id);
  area.innerHTML='';
  if(error){area.textContent=error.message;return;}
- for(const item of (data||[])){
-  if(!item.name || item.name.startsWith('.')) continue;
-  const path = user.id + '/' + item.name;
-  const {data:link}=await db.storage.from('episodes').createSignedUrl(path,3600);
-  if(!link) continue;
+ if(!data||data.length===0){area.textContent='لا توجد حلقات مرفوعة بعد';return;}
+ for(const item of data){
+  if(!item.name||item.name.startsWith('.'))continue;
+  const path=user.id+'/'+item.name;
+  const {data:link,error}=await db.storage.from('episodes').createSignedUrl(path,3600);
+  if(error){area.textContent=error.message;continue;}
   const box=document.createElement('div');
   const title=document.createElement('h3');
   title.textContent=item.name;
@@ -142,10 +126,7 @@ async function logout(){
  await refresh();
 }
 
-db.auth.getSession().then(({data, error}) => {
-  document.getElementById('status').textContent =
-    error ? error.message : 'الاتصال بـ Supabase يعمل';
-});
+refresh();
 </script>
 </body>
 </html>
