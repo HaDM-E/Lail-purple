@@ -63,7 +63,31 @@ async function login(){
  await refresh();
 }
 
-async function refresh(){
+async function login(){
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+
+  const status = document.getElementById('status');
+  status.textContent = 'جاري الاتصال...';
+
+  try {
+    const result = await db.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (result.error) {
+      status.textContent = result.error.message;
+      return;
+    }
+
+    status.textContent = 'تم تسجيل الدخول بنجاح';
+    await refresh();
+
+  } catch (e) {
+    status.textContent = e.message;
+  }
+}{
  const {data:{session}}=await db.auth.getSession();
  document.getElementById('login').hidden=!!session;
  document.getElementById('library').hidden=!session;
