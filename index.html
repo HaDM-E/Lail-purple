@@ -4,16 +4,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ليل البنفسج</title>
+<title>ليل البنفسج | الجزء الثاني</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-body{background:#100b19;color:white;font-family:Arial;text-align:center;margin:0}
-header{background:#251438;padding:25px}
-h1{color:#d5a5ff}
-.box{background:#241b30;padding:20px;margin:18px auto;border-radius:15px;max-width:550px}
-input,button{padding:12px;margin:8px;border-radius:8px;max-width:90%}
+*{box-sizing:border-box}
+body{margin:0;background:#100b19;color:#fff;font-family:Arial;text-align:center}
+header{background:#251438;padding:28px 15px;border-bottom:1px solid #68418a}
+h1{color:#d5a5ff;margin:0 0 10px}
+.box{background:#241b30;padding:22px;margin:22px auto;border-radius:16px;max-width:600px;width:92%}
+input,button{padding:13px;margin:8px;border-radius:9px;max-width:95%;font-size:15px}
+input{background:#fff;color:#222;border:0}
 button{background:#9b59b6;color:white;border:0;cursor:pointer}
-video{width:100%;margin-top:15px}
+button:disabled{opacity:.5}
+video{width:100%;margin-top:12px;border-radius:12px;background:#000}
+.episode{background:#352544;padding:15px;margin:15px 0;border-radius:12px}
+#status,#message{overflow-wrap:anywhere;color:#e4c7ff}
 </style>
 </head>
 <body>
@@ -29,15 +34,16 @@ video{width:100%;margin-top:15px}
 <br>
 <input id="password" type="password" placeholder="كلمة المرور">
 <br>
-<button onclick="login()">دخول</button>
-<p id="status"></p>
+<button id="loginBtn" onclick="login()">دخول</button>
+<p id="status">أدخل بيانات حسابك</p>
 </div>
 
 <div class="box" id="library" hidden>
 <h2>مكتبة الحلقات</h2>
 <input type="file" id="file" accept="video/mp4">
 <br>
-<button onclick="upload()">رفع الحلقة</button>
+<button id="uploadBtn" onclick="upload()">رفع الحلقة</button>
+<button onclick="loadEpisodes()">تحديث المكتبة</button>
 <button onclick="logout()">تسجيل الخروج</button>
 <p id="message"></p>
 <div id="episodes"></div>
@@ -45,85 +51,175 @@ video{width:100%;margin-top:15px}
 
 <script>
 const SUPABASE_URL = "https://njszmowbcsizrcalbnsv.supabase.co";
-const SUPABASE_KEY = "sb_publishable_P-XFrSjOs8CRXgdtc_1NJg_-khQHqRr";
+const SUPABASE_KEY = "ضع مفتاحك publishable هنا";
+const BUCKET = "Lail purple";
 
-const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 
 async function refresh(){
- const {data,error}=await db.auth.getSession();
- if(error){
-  document.getElementById('status').textContent=error.message;
-  return;
- }
- const session=data.session;
- document.getElementById('login').hidden=!!session;
- document.getElementById('library').hidden=!session;
- if(session) await loadEpisodes();
+  const {data,error}=await db.auth.getSession();
+
+  if(error){
+    document.getElementById('status').textContent=error.message;
+    return;
+  }
+
+  const session=data.session;
+  document.getElementById('login').hidden=!!session;
+  document.getElementById('library').hidden=!session;
+
+  if(session) await loadEpisodes();
 }
 
 async function login(){
- const status=document.getElementById('status');
- const email=document.getElementById('email').value.trim();
- const password=document.getElementById('password').value;
- status.textContent='جاري تسجيل الدخول...';
+  const status=document.getElementById('status');
+  const button=document.getElementById('loginBtn');
 
- try{
-  const {error}=await db.auth.signInWithPassword({email,password});
-  if(error){
-   status.textContent=error.message;
-   return;
+  const email=document.getElementById('email').value.trim();
+  const password=document.getElementById('password').value;
+
+  if(!email||!password){
+    status.textContent='أدخل البريد وكلمة المرور';
+    return;
   }
-  status.textContent='تم تسجيل الدخول';
-  await refresh();
- }catch(e){
-  status.textContent='خطأ: '+e.message;
- }
+
+  button.disabled=true;
+  status.textContent='جاري تسجيل الدخول...';
+
+  try{
+    const {error}=await db.auth.signInWithPassword({email,password});
+
+    if(error){
+      status.textContent=error.message;
+      return;
+    }
+
+    status.textContent='تم تسجيل الدخول';
+    await refresh();
+
+  }catch(e){
+    status.textContent='خطأ: '+e.message;
+  }finally{
+    button.disabled=false;
+  }
 }
 
 async function upload(){
- const {data:{user}}=await db.auth.getUser();
- const file=document.getElementById('file').files[0];
- const message=document.getElementById('message');
- if(!file||!user){message.textContent='اختر ملف فيديو أولاً';return;}
- if(file.type!=='video/mp4'){message.textContent='اختر ملف MP4';return;}
- message.textContent='جاري الرفع...';
- const path=user.id+'/'+Date.now()+'.mp4';
- const {error}=await db.storage.from('episodes').upload(path,file);
- if(error){message.textContent=error.message;return;}
- message.textContent='تم رفع الحلقة';
- document.getElementById('file').value='';
- await loadEpisodes();
+  const message=document.getElementById('message');
+  const button=document.getElementById('uploadBtn');
+  const file=document.getElementById('file').files[0];
+
+  if(!file){
+    message.textContent='اختر الحلقة أولاً';
+    return;
+  }
+
+  if(file.type!=='video/mp4'){
+    message.textContent='الملف يجب أن يكون MP4';
+    return;
+  }
+
+  const {data:{user},error:userError}=await db.auth.getUser();
+
+  if(userError||!user){
+    message.textContent='سجّل الدخول أولاً';
+    return;
+  }
+
+  const path=user.id+'/'+Date.now()+'.mp4';
+
+  button.disabled=true;
+  message.textContent='جاري رفع الحلقة...';
+
+  try{
+    const {error}=await db.storage.from(BUCKET).upload(path,file);
+
+    if(error){
+      message.textContent='فشل الرفع: '+error.message;
+      return;
+    }
+
+    message.textContent='تم رفع الحلقة بنجاح';
+    document.getElementById('file').value='';
+    await loadEpisodes();
+
+  }catch(e){
+    message.textContent='خطأ: '+e.message;
+  }finally{
+    button.disabled=false;
+  }
 }
 
 async function loadEpisodes(){
- const {data:{user}}=await db.auth.getUser();
- const area=document.getElementById('episodes');
- area.innerHTML='جاري تحميل الحلقات...';
- if(!user){area.textContent='لم يتم تسجيل الدخول';return;}
- const {data,error}=await db.storage.from('episodes').list(user.id);
- area.innerHTML='';
- if(error){area.textContent=error.message;return;}
- if(!data||data.length===0){area.textContent='لا توجد حلقات مرفوعة بعد';return;}
- for(const item of data){
-  if(!item.name||item.name.startsWith('.'))continue;
-  const path=user.id+'/'+item.name;
-  const {data:link,error}=await db.storage.from('episodes').createSignedUrl(path,3600);
-  if(error){area.textContent=error.message;continue;}
-  const box=document.createElement('div');
-  const title=document.createElement('h3');
-  title.textContent=item.name;
-  const video=document.createElement('video');
-  video.controls=true;
-  video.playsInline=true;
-  video.src=link.signedUrl;
-  box.append(title,video);
-  area.append(box);
- }
+  const area=document.getElementById('episodes');
+  area.innerHTML='جاري تحميل الحلقات...';
+
+  const {data:{user},error:userError}=await db.auth.getUser();
+
+  if(userError||!user){
+    area.textContent='تعذّر التحقق من الحساب';
+    return;
+  }
+
+  const {data,error}=await db.storage.from(BUCKET).list(user.id);
+
+  if(error){
+    area.textContent='خطأ المكتبة: '+error.message;
+    return;
+  }
+
+  area.innerHTML='';
+
+  const videos=(data||[]).filter(item=>
+    item.name && item.name.toLowerCase().endsWith('.mp4')
+  );
+
+  if(videos.length===0){
+    area.textContent='لا توجد حلقات مرفوعة بعد';
+    return;
+  }
+
+  for(const item of videos){
+    const path=user.id+'/'+item.name;
+
+    const {data:link,error:linkError}=await db.storage
+      .from(BUCKET)
+      .createSignedUrl(path,3600);
+
+    if(linkError){
+      area.textContent='تعذّر تشغيل '+item.name+': '+linkError.message;
+      continue;
+    }
+
+    const box=document.createElement('div');
+    box.className='episode';
+
+    const title=document.createElement('h3');
+    title.textContent=item.name;
+
+    const video=document.createElement('video');
+    video.controls=true;
+    video.playsInline=true;
+    video.preload='metadata';
+    video.src=link.signedUrl;
+
+    box.append(title,video);
+    area.append(box);
+  }
 }
 
 async function logout(){
- await db.auth.signOut();
- await refresh();
+  const {error}=await db.auth.signOut();
+
+  if(error){
+    document.getElementById('message').textContent=error.message;
+    return;
+  }
+
+  await refresh();
 }
 
 refresh();
