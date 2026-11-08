@@ -4,74 +4,121 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ليل البنفسج | الجزء الثاني</title>
+<title>ليل البنفسج</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
-body {
-  margin: 0;
-  background: #100b19;
-  color: white;
-  font-family: Arial;
-  text-align: center;
-}
-header {
-  background: #251438;
-  padding: 30px;
-}
-h1 { color: #d5a5ff; }
-main { padding: 20px; }
-.box {
-  background: #241b30;
-  padding: 22px;
-  border-radius: 15px;
-  margin: 20px auto;
-  max-width: 600px;
-}
-input { max-width: 100%; }
-video {
-  width: 100%;
-  margin-top: 20px;
-  border-radius: 10px;
-}
+body{background:#100b19;color:white;font-family:Arial;text-align:center;margin:0}
+header{background:#251438;padding:25px}
+h1{color:#d5a5ff}
+.box{background:#241b30;padding:20px;margin:18px auto;border-radius:15px;max-width:550px}
+input,button{padding:12px;margin:8px;border-radius:8px;max-width:90%}
+button{background:#9b59b6;color:white;border:0}
+video{width:100%;margin-top:15px}
 </style>
 </head>
 <body>
-
 <header>
 <h1>ليل البنفسج</h1>
 <p>الجزء الثاني</p>
 </header>
 
-<main>
-<div class="box">
-<h2>مشاهدة الحلقات</h2>
-<p>اختر ملف الحلقة من جهازك</p>
-
-<input type="file" id="file" accept="video/mp4,video/*">
-
-<video id="player" controls playsinline hidden></video>
-
-<p id="name"></p>
+<div class="box" id="login">
+<h2>تسجيل الدخول</h2>
+<input id="email" type="email" placeholder="البريد الإلكتروني">
+<br>
+<input id="password" type="password" placeholder="كلمة المرور">
+<br>
+<button onclick="login()">دخول</button>
+<p id="status"></p>
 </div>
-</main>
+
+<div class="box" id="library" hidden>
+<h2>مكتبة الحلقات</h2>
+<input type="file" id="file" accept="video/mp4">
+<br>
+<button onclick="upload()">رفع الحلقة</button>
+<button onclick="logout()">تسجيل الخروج</button>
+<p id="message"></p>
+<div id="episodes"></div>
+</div>
 
 <script>
-const file = document.getElementById('file');
-const player = document.getElementById('player');
-const name = document.getElementById('name');
-let oldUrl;
+const SUPABASE_URL = "https://njszmowbcsizrcalbnsv.supabase.co/rest/v1/";
+const SUPABASE_KEY = "sb_publishable_P-XFrSjOs8CRXgdtc_1NJg_-khQHqRr";
 
-file.addEventListener('change', () => {
-  const video = file.files[0];
-  if (!video) return;
+const db = window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+);
 
-  if (oldUrl) URL.revokeObjectURL(oldUrl);
-  oldUrl = URL.createObjectURL(video);
+async function login(){
+ const {error}=await db.auth.signInWithPassword({
+  email:document.getElementById('email').value,
+  password:document.getElementById('password').value
+ });
+ if(error){
+  document.getElementById('status').textContent=error.message;
+  return;
+ }
+ await refresh();
+}
 
-  player.src = oldUrl;
-  player.hidden = false;
-  name.textContent = video.name;
-});
+async function refresh(){
+ const {data:{session}}=await db.auth.getSession();
+ document.getElementById('login').hidden=!!session;
+ document.getElementById('library').hidden=!session;
+ if(session) await loadEpisodes();
+}
+
+async function upload(){
+ const {data:{user}}=await db.auth.getUser();
+ const file=document.getElementById('file').files[0];
+ if(!file || !user) return;
+ if(file.type!=='video/mp4'){
+  alert('اختر ملف MP4');
+  return;
+ }
+ document.getElementById('message').textContent='جاري الرفع...';
+ const path=user.id+'/'+Date.now()+'-'+file.name;
+ const {error}=await db.storage.from('episodes').upload(path,file);
+ if(error){
+  document.getElementById('message').textContent=error.message;
+  return;
+ }
+ document.getElementById('message').textContent='تم رفع الحلقة';
+ document.getElementById('file').value='';
+ await loadEpisodes();
+}
+
+async function loadEpisodes(){
+ const {data:{user}}=await db.auth.getUser();
+ const {data,error}=await db.storage.from('episodes').list(user.id);
+ const area=document.getElementById('episodes');
+ area.innerHTML='';
+ if(error){area.textContent=error.message;return;}
+ for(const item of (data||[])){
+  if(!item.name || item.name.startsWith('.')) continue;
+  const path=user.id+'/'+item.name;
+  const {data:link}=await db.storage.from('episodes').createSignedUrl(path,3600);
+  if(!link) continue;
+  const box=document.createElement('div');
+  const title=document.createElement('h3');
+  title.textContent=item.name;
+  const video=document.createElement('video');
+  video.controls=true;
+  video.playsInline=true;
+  video.src=link.signedUrl;
+  box.append(title,video);
+  area.append(box);
+ }
+}
+
+async function logout(){
+ await db.auth.signOut();
+ await refresh();
+}
+
+refresh();
 </script>
-
 </body>
 </html>
